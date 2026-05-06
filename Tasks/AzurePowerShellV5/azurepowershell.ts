@@ -13,6 +13,7 @@ function convertToNullIfUndefined<T>(arg: T): T|null {
 }
 
 async function run() {
+    let resolvedPwshPath: string = '';
     let input_workingDirectory = tl.getPathInput('workingDirectory', /*required*/ true, /*check*/ true);
     let tempDirectory = tl.getVariable('agent.tempDirectory');
     tl.checkPath(tempDirectory, `${tempDirectory} (agent.tempDirectory)`);
@@ -138,7 +139,8 @@ async function run() {
         // Note, use "-Command" instead of "-File" to match the Windows implementation. Refer to
         // comment on Windows implementation for an explanation why "-Command" is preferred.
         const importSdk = path.join(path.resolve(__dirname), 'ImportVstsTaskSdk.ps1');
-        let powershell = tl.tool(tl.which('pwsh') || tl.which('powershell') || tl.which('pwsh', true))
+        resolvedPwshPath = tl.which('pwsh') || tl.which('powershell') || tl.which('pwsh', true);
+        let powershell = tl.tool(resolvedPwshPath)
             .arg('-NoLogo')
             .arg('-NoProfile')
             .arg('-NonInteractive')
@@ -180,34 +182,55 @@ async function run() {
         tl.setResult(tl.TaskResult.Failed, err.message || 'run() failed');
     }
     finally {
+        const softFailOnCleanup = tl.getPipelineFeature('AzurePowerShellSoftFailOnCleanup');
         let cleanupExitCode = 0;
         try {
-            const powershell = tl.tool(tl.which('pwsh') || tl.which('powershell') || tl.which('pwsh', true))
-                .arg('-NoLogo')
-                .arg('-NoProfile')
-                .arg('-NonInteractive')
-                .arg('-ExecutionPolicy')
-                .arg('Unrestricted')
-                .arg('-Command')
-                .arg(`. '${path.join(path.resolve(__dirname), 'RemoveAzContext.ps1')}'`);
+            if (!resolvedPwshPath) {
+                tl.debug("Skipping cleanup: PowerShell executable was not resolved during main execution.");
+            } else {
+                const powershell = tl.tool(resolvedPwshPath)
+                    .arg('-NoLogo')
+                    .arg('-NoProfile')
+                    .arg('-NonInteractive')
+                    .arg('-ExecutionPolicy')
+                    .arg('Unrestricted')
+                    .arg('-Command')
+                    .arg(`. '${path.join(path.resolve(__dirname), 'RemoveAzContext.ps1')}'`);
 
-            let options = <tr.IExecOptions>{
+                let options = <tr.IExecOptions>{
                     cwd: input_workingDirectory,
                     failOnStdErr: false,
                     errStream: process.stdout, // Direct all output to STDOUT, otherwise the output may appear out
                     outStream: process.stdout, // of order since Node buffers it's own STDOUT but not STDERR.
                     ignoreReturnCode: true
                 };
-            cleanupExitCode = await powershell.exec(options);
-            tl.debug(`Cleanup exit code: ${cleanupExitCode}`);
+                cleanupExitCode = await powershell.exec(options);
+                tl.debug(`Cleanup exit code: ${cleanupExitCode}`);
+
+                if (cleanupExitCode !== 0) {
+                    if (softFailOnCleanup) {
+                        tl.warning(`Azure context cleanup completed with exit code: ${cleanupExitCode}. Azure context may not have been fully cleared.`);
+                    } else {
+                        tl.setResult(tl.TaskResult.Failed, `Cleanup failed with exit code: ${cleanupExitCode}`);
+                    }
+                }
+            }
         }
         catch (err) {
-            tl.debug("Az-clearContext not completed due to an error");
-            tl.setResult(tl.TaskResult.Failed, `Cleanup failed with error message: ${err.message}`);
+            if (softFailOnCleanup) {
+                tl.warning(`Azure context cleanup failed: ${err.message}. Azure context may not have been fully cleared.`);
+            } else {
+                tl.setResult(tl.TaskResult.Failed, `Cleanup failed with error message: ${err.message}`);
+            }
         }
 
-        if (cleanupExitCode !== 0) {
-            tl.setResult(tl.TaskResult.Failed, `Cleanup failed with exit code: ${cleanupExitCode}`);
+        // Best-effort: clear service connection env vars from the agent process
+        // even if the PowerShell cleanup script failed
+        if (cleanupExitCode !== 0 || !resolvedPwshPath) {
+            tl.debug("Clearing service connection environment variables from agent process.");
+            delete process.env.AZURESUBSCRIPTION_SERVICE_CONNECTION_ID;
+            delete process.env.AZURESUBSCRIPTION_CLIENT_ID;
+            delete process.env.AZURESUBSCRIPTION_TENANT_ID;
         }
     }
 }
