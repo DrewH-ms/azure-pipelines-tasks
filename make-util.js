@@ -781,6 +781,14 @@ var getExternalsAsync = async function (externals, destRoot) {
             if (package.repository.includes('pkgs.dev.azure.com') || package.repository.includes('pkgs.visualstudio.com')) {
                 // Azure Artifacts requires authentication
                 var accessToken = process.env['PACKAGE_TOKEN'] || process.env['SYSTEM_ACCESSTOKEN'];
+                if (!accessToken) {
+                    // Try to get token from Azure CLI for local builds
+                    try {
+                        accessToken = ncp.execSync('az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv', { encoding: 'utf8' }).trim();
+                    } catch (e) {
+                        // az CLI not available or not logged in
+                    }
+                }
                 if (accessToken) {
                     // Azure Artifacts feeds: use NuGet V3 flat container format for direct download
                     var feedBase = package.repository.replace(/\/nuget\/v2\/?$/, '');
@@ -789,8 +797,8 @@ var getExternalsAsync = async function (externals, destRoot) {
                     var base64Token = Buffer.from(':' + accessToken).toString('base64');
                     downloadOptions.headers = { 'Authorization': 'Basic ' + base64Token };
                 } else {
-                    // Fallback to PowerShell Gallery for local builds without auth
-                    url = 'https://www.powershellgallery.com/api/v2/package/' + package.name + '/' + package.version;
+                    // Fallback to nuget.org for local builds without auth (only works for public packages)
+                    url = 'https://www.nuget.org/api/v2/package/' + package.name + '/' + package.version;
                 }
             } else {
                 url = package.repository.replace(/\/$/, '') + '/package/' + package.name + '/' + package.version;
