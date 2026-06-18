@@ -30,5 +30,5 @@ export default class Constants {
   public static defaultExecOption = {} as IExecSyncOptions;
   public static UTF8 = "utf8";
   public static outputVariableDeploymentPathKey = "DEPLOYMENT_FILE_PATH";
-  public static azureCliIotExtensionDefaultSource = "https://github.com/Azure/azure-iot-cli-extension/releases/download/v0.10.11/azure_iot-0.10.11-py3-none-any.whl";
+  public static azureCliIotExtensionDefaultSource = "https://github.com/Azure/azure-iot-cli-extension/releases/download/v0.29.0/azure_iot-0.29.0-py3-none-any.whl";
 }

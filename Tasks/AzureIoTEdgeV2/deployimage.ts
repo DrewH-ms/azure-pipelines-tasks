@@ -61,6 +61,7 @@ class azureclitask {
         }
       }
 
+      let disableLocalAuth = false;
       try {
         let iotHubInfo = JSON.parse(tl.execSync('az', ["iot", "hub", "show", "-n", iothub], Constants.execSyncSilentOption).stdout);
         tl.debug(`The host name of iot hub is ${iotHubInfo.properties.hostName}`);
@@ -70,9 +71,14 @@ class azureclitask {
         if (m && m[1]) {
           telemetryEvent.iotHubDomain = m[1];
         }
+        //check whether the hub has local (SAS) auth disabled.
+        disableLocalAuth = (iotHubInfo.properties.disableLocalAuth === true);
       } catch (e) {
         // If error when get iot hub information, ignore.
       }
+
+      //use auth-type login when local auth is disabled.
+      let dataPlaneAuthArgs: string[] = disableLocalAuth ? ["--auth-type", "login"] : [];
 
       let outputStream: EchoStream = new EchoStream();
       let execOptions: IExecOptions = {
@@ -80,8 +86,8 @@ class azureclitask {
         shell: true,
       } as IExecOptions;
 
-      let result1 = tl.execSync('az', ["iot", "edge", "deployment", "delete", "--hub-name", iothub, "--deployment-id", configId], Constants.execSyncSilentOption);
-      let result2 = await tl.exec('az', ["iot", "edge", "deployment", "create", "--deployment-id", configId, "--hub-name", iothub, "--content", deploymentJsonPath, "--target-condition", targetCondition, "--priority", priority.toString(), "--output", "none"], execOptions);
+      let result1 = tl.execSync('az', ["iot", "edge", "deployment", "delete", "--hub-name", iothub, "--deployment-id", configId, ...dataPlaneAuthArgs], Constants.execSyncSilentOption);
+      let result2 = await tl.exec('az', ["iot", "edge", "deployment", "create", "--deployment-id", configId, "--hub-name", iothub, "--content", deploymentJsonPath, "--target-condition", targetCondition, "--priority", priority.toString(), "--output", "none", ...dataPlaneAuthArgs], execOptions);
       if (result2 !== 0) {
         throw new Error(`Failed to create deployment. Error: ${outputStream.content}`);
       }
