@@ -77,6 +77,19 @@
       "helpMarkDown": "ms-resource:loc.input.help.iothubname"
     },
     {
+      "name": "access",
+      "type": "pickList",
+      "label": "ms-resource:loc.input.label.access",
+      "defaultValue": "SAS token",
+      "required": false,
+      "visibleRule": "action == Deploy to IoT Edge devices",
+      "options": {
+        "SAS token": "SAS token",
+        "Entra ID": "Entra ID"
+      },
+      "helpMarkDown": "ms-resource:loc.input.help.access"
+    },
+    {
       "name": "deploymentid",
       "type": "string",
       "label": "ms-resource:loc.input.label.deploymentid",

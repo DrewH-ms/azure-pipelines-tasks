@@ -77,6 +77,19 @@
       "helpMarkDown": "Select the **IoT Hub**"
     },
     {
+      "name": "access",
+      "type": "pickList",
+      "label": "Service API access type",
+      "defaultValue": "SAS token",
+      "required": false,
+      "visibleRule": "action == Deploy to IoT Edge devices",
+      "options": {
+        "SAS token": "SAS token",
+        "Entra ID": "Entra ID"
+      },
+      "helpMarkDown": "Select how the task authenticates to the IoT Hub service APIs.\n **SAS token** uses shared access policies and security tokens (local auth).\n **Entra ID** uses Microsoft Entra ID (RBAC). Select **Entra ID** if the target IoT Hub has local auth disabled."
+    },
+    {
       "name": "deploymentid",
       "type": "string",
       "label": "IoT Edge deployment ID",

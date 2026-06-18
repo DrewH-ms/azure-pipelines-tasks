@@ -61,7 +61,6 @@ class azureclitask {
         }
       }
 
-      let disableLocalAuth = false;
       try {
         let iotHubInfo = JSON.parse(tl.execSync('az', ["iot", "hub", "show", "-n", iothub], Constants.execSyncSilentOption).stdout);
         tl.debug(`The host name of iot hub is ${iotHubInfo.properties.hostName}`);
@@ -71,14 +70,13 @@ class azureclitask {
         if (m && m[1]) {
           telemetryEvent.iotHubDomain = m[1];
         }
-        //check whether the hub has local (SAS) auth disabled.
-        disableLocalAuth = (iotHubInfo.properties.disableLocalAuth === true);
       } catch (e) {
         // If error when get iot hub information, ignore.
       }
 
-      //use auth-type login when local auth is disabled.
-      let dataPlaneAuthArgs: string[] = disableLocalAuth ? ["--auth-type", "login"] : [];
+      //use auth-type login when the customer selects Entra ID access.
+      let access: string = tl.getInput("access") || "SAS token";
+      let dataPlaneAuthArgs: string[] = access === "Entra ID" ? ["--auth-type", "login"] : [];
 
       let outputStream: EchoStream = new EchoStream();
       let execOptions: IExecOptions = {
